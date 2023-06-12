@@ -1,206 +1,286 @@
+mod macros;
+
+use indoc::indoc;
 use markdown::to_html;
 
 // 43
-#[test]
-fn simple() {
-    let markdown = r"
-***
----
-___
-";
-    let html = to_html(markdown);
-    assert_eq!(html, "<hr />\n".repeat(3));
-}
+mdtest!(
+    simple,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ***
+    ---
+    ___
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <hr />
+    <hr />
+    <hr />
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 44
-#[test]
-fn wrong_chars() {
-    let markdown = "+++";
-    let html = to_html(markdown);
-    assert_eq!(html, "<p>+++</p>\n");
-}
+mdtest!(
+    wrong_chars,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    +++
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <p>+++</p>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 45
-#[test]
-fn wrong_chars_2() {
-    let markdown = "===";
-    let html = to_html(markdown);
-    assert_eq!(html, "<p>===</p>\n");
-}
+mdtest!(
+    wrong_chars_2,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ===
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <p>===</p>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 46
-#[test]
-fn not_enough_chars() {
-    let markdown = r"
---
-**
-__
-";
-    let html = to_html(markdown);
-    assert_eq!(html, "<p>--\n**\n__</p>\n");
-}
+mdtest!(
+    not_enough_chars,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    --
+    **
+    __
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <p>--
+    **
+    __</p>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 47
-#[test]
-fn three_leading_spaces() {
-    let markdown = r"
- ***
-  ***
-   ***
-";
-    let html = to_html(markdown);
-    assert_eq!(html, "<hr />\n".repeat(3));
-}
+mdtest!(
+    three_leading_spaces,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     ***
+      ***
+       ***
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <hr />
+    <hr />
+    <hr />
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 48
-#[test]
-#[ignore = "code block not supported"]
-fn four_leading_spaces() {
-    let markdown = r"
-    ***
-";
-    let html = to_html(markdown);
-    assert_eq!(html, "<pre><code>***\n</code></pre>");
-}
+mdtest_ignore!(
+    four_leading_spaces,
+    "code block not supported",
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        ***
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <pre><code>***
+    </code></pre>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 49
-#[test]
-fn four_leading_spaces_2() {
-    let markdown = r"
-Foo
-    ***
-";
-    let html = to_html(markdown);
-    assert_eq!(html, "<p>Foo\n***</p>\n");
-}
+mdtest!(
+    four_leading_spaces_2,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Foo
+        ***
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <p>Foo
+    ***</p>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 50
-#[test]
-fn many_chars() {
-    let markdown = "_____________________________________";
-    let html = to_html(markdown);
-    assert_eq!(html, "<hr />\n");
-}
+mdtest!(
+    many_chars,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    _____________________________________
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <hr />
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 51
-#[test]
-fn interleaved_spaces() {
-    let markdown = " - - -";
-    let html = to_html(markdown);
-    assert_eq!(html, "<hr />\n");
-}
+mdtest!(
+    interleaved_spaces,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     - - -
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <hr />
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 52
-#[test]
-fn interleaved_spaces_2() {
-    let markdown = " **  * ** * ** * **";
-    let html = to_html(markdown);
-    assert_eq!(html, "<hr />\n");
-}
+mdtest!(
+    interleaved_spaces_2,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     **  * ** * ** * **
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <hr />
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 53
-#[test]
-fn interleaved_spaces_3() {
-    let markdown = "-     -      -      -";
-    let html = to_html(markdown);
-    assert_eq!(html, "<hr />\n");
-}
+mdtest!(
+    interleaved_spaces_3,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    -     -      -      -
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <hr />
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 54
-#[test]
-fn trailing_spaces() {
-    let markdown = "- - - -    ";
-    let html = to_html(markdown);
-    assert_eq!(html, "<hr />\n");
-}
+mdtest!(
+    trailing_spaces,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    - - - -
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <hr />
+    "
+);
 
 // 55
-#[test]
-fn interleaved_alnum() {
-    let markdown = r"
-_ _ _ _ a
+mdtest!(
+    interleaved_alnum,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    _ _ _ _ a
 
-a------
+    a------
 
----a---
-";
-    let html = to_html(markdown);
-    assert_eq!(html, "<p>_ _ _ _ a</p>\n<p>a------</p>\n<p>---a---</p>\n");
-}
+    ---a---
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <p>_ _ _ _ a</p>
+    <p>a------</p>
+    <p>---a---</p>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 56
-#[test]
-fn mixed_delimiters() {
-    let markdown = " *-*";
-    let html = to_html(markdown);
-    assert_eq!(html, "<p>*-*</p>\n");
-}
+mdtest!(
+    mixed_delimiters,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    *-*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <p>*-*</p>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 57
-#[test]
-#[ignore = "list not supported"]
-fn no_blank_lines() {
-    let markdown = r"
-- foo
-***
-- bar
-";
-    let html = to_html(markdown);
-    assert_eq!(
-        html,
-        r"<ul>\n<li>foo</li>\n</ul>\n<hr />\n<ul>\n<li>bar</li>\n</ul>\n"
-    )
-}
+mdtest_ignore!(
+    no_blank_lines,
+    "list not supported",
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    - foo
+    ***
+    - bar
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <ul>
+    <li>foo</li>
+    </ul>
+    <hr />
+    <ul>
+    <li>bar</li>
+    </ul>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 58
-#[test]
-fn interrupt_paragraph() {
-    let markdown = "
-Foo
-***
-bar
-";
-    let html = to_html(markdown);
-    assert_eq!(html, "<p>Foo</p>\n<hr />\n<p>bar</p>\n");
-}
+mdtest!(
+    interrupt_paragraph,
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Foo
+    ***
+    bar
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <p>Foo</p>
+    <hr />
+    <p>bar</p>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 59
-#[test]
-#[ignore = "header not supported"]
-fn setext_header_precedence() {
-    let markdown = r"
-Foo
----
-bar
-";
-    let html = to_html(markdown);
-    assert_eq!(html, "<h2>Foo</h2>\n<p>bar</p>\n");
-}
+mdtest_ignore!(
+    setext_header_precedence,
+    "header not supported",
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Foo
+    ---
+    bar
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <h2>Foo</h2>
+    <p>bar</p>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 60
-#[test]
-#[ignore = "list not supported"]
-fn list_precedence() {
-    let markdown = r"
-* Foo
-* * *
-* Bar
-";
-    let html = to_html(markdown);
-    assert_eq!(
-        html,
-        "<ul>\n<li>Foo</li>\n</ul>\n<hr />\n<ul>\n<li>Bar</li>\n</ul>\n"
-    );
-}
+mdtest_ignore!(
+    list_precedence,
+    "list not supported",
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    * Foo
+    * * *
+    * Bar
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <ul>
+    <li>Foo</li>
+    </ul>
+    <hr />
+    <ul>
+    <li>Bar</li>
+    </ul>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
 
 // 61
-#[test]
-#[ignore = "list not supported"]
-fn in_list() {
-    let markdown = r"
-- Foo
-- * * *
-";
-    let html = to_html(markdown);
-    assert_eq!(html, "<ul>\n<li>Foo</li>\n<li>\n<hr />\n</li>\n</ul>\n");
-}
+mdtest_ignore!(
+    in_list,
+    "list not supported",
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    - Foo
+    - * * *
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <ul>
+    <li>Foo</li>
+    <li>
+    <hr />
+    </li>
+    </ul>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);

@@ -1,21 +1,29 @@
-use markdown;
+mod macros;
+
+use indoc::indoc;
+use markdown::to_html;
 
 // 227
-#[test]
-#[ignore = "headings not supported"]
-fn simple() {
-    let markdown = r"
+mdtest_ignore!(
+    simple,
+    "headings not supported",
+    "
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
-
-aaa
-
-
-# aaa
-
-    
+    aaa
 
 
-";
-}
+
+    # aaa
+
+        
+
+
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    <p>aaa</p>
+    <h1>aaa</h1>
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    "
+);
