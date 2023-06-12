@@ -4,9 +4,8 @@ use indoc::indoc;
 use markdown::to_html;
 
 // 227
-mdtest_ignore!(
+mdtest!(
     simple,
-    "headings not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

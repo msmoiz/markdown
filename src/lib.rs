@@ -3,6 +3,7 @@
 mod ast;
 
 use ast::{
+    Heading,
     Node::{self, *},
     Paragraph, Root,
 };
@@ -27,6 +28,30 @@ lazy_static! {
     ",
     )
     .expect("hr regex should be valid");
+    static ref HEADING_RE: Regex = Regex::new(
+        r"(?x)
+        # start of text
+        ^
+        # leading spaces               
+        \ {0,3}
+        # delimiters
+        (\#{1,6})
+        # body
+        (?:
+            # separating space
+            \ +
+            # content
+            (?:
+                ([^\#]*)\s+\#+\s*$  # closing sequence (with text)
+                |\#+\s*$            # closing sequence (without text)
+                |(.*)$              # no closing sequence
+            )
+            # empty
+            |$
+        )
+        "
+    )
+    .expect("heading regex should be valid");
 }
 
 /// Parses an input Markdown text into HTML.
@@ -54,6 +79,22 @@ pub fn to_html(text: &str) -> String {
         if HR_RE.is_match(line) {
             end_previous(&mut root, &mut scope);
             root.children_mut().unwrap().push(ThematicBreak);
+            continue;
+        }
+
+        // Heading
+        if let Some(cap) = HEADING_RE.captures(line) {
+            end_previous(&mut root, &mut scope);
+            let opening = cap.get(1).expect("opening sequence should be captured");
+            let content = match (cap.get(2), cap.get(3)) {
+                (Some(mat), None) => mat.as_str().to_string(),
+                (None, Some(mat)) => mat.as_str().to_string(),
+                (None, None) => String::new(),
+                _ => unreachable!("cannot match on both"),
+            };
+            root.children_mut()
+                .unwrap()
+                .push(Heading(Heading::new(opening.len() as u8, content)));
             continue;
         }
 
