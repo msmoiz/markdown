@@ -3,6 +3,7 @@ use std::fmt::Display;
 /// Node.
 pub enum Node {
     Root(Root),
+    ThematicBreak,
     Paragraph(Paragraph),
     Text(String),
 }
@@ -29,6 +30,9 @@ impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Node::Root(x) => x.children.iter().for_each(|c| write!(f, "{c}").unwrap()),
+            Node::ThematicBreak => {
+                write!(f, "<hr />\n").unwrap();
+            }
             Node::Paragraph(x) => {
                 write!(f, "<p>").unwrap();
                 x.children.iter().for_each(|c| write!(f, "{c}").unwrap());
