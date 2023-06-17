@@ -1,8 +1,5 @@
 mod macros;
 
-use indoc::indoc;
-use markdown::to_html;
-
 // 227
 mdtest!(
     simple,

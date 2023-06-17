@@ -24,6 +24,9 @@ macro_rules! mdtest {
     ($name:ident, $test:expr) => {
         #[test]
         fn $name() {
+            use indoc::indoc;
+            use markdown::to_html;
+
             let separator = "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
             let components: Vec<&str> = indoc!($test).split(separator).collect();
             let markdown = &components[1][1..]; // skip leading newline
@@ -63,6 +66,9 @@ macro_rules! mdtest_ignore {
         #[test]
         #[ignore = $reason]
         fn $name() {
+            use indoc::indoc;
+            use markdown::to_html;
+
             let separator = "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
             let components: Vec<&str> = indoc!($test).split(separator).collect();
             let markdown = &components[1][1..]; // skip leading newline
