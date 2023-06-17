@@ -28,7 +28,7 @@ lazy_static! {
     ",
     )
     .expect("hr regex should be valid");
-    static ref HEADING_RE: Regex = Regex::new(
+    static ref ATX_HEADING_RE: Regex = Regex::new(
         r"(?x)
         # start of text
         ^
@@ -52,6 +52,24 @@ lazy_static! {
         "
     )
     .expect("heading regex should be valid");
+    static ref SETEXT_HEADING_RE: Regex = Regex::new(
+        r"(?x)
+        # start of text
+        ^
+        # leading spaces
+        \ {0, 3}
+        # delimiters
+        (?:
+            (=+) # level 1
+            |(-+) # level 2
+        )
+        # trailing spaces
+        \ *
+        # end of text
+        $
+        "
+    )
+    .expect("setext heading should be valid");
 }
 
 /// Parses an input Markdown text into HTML.
@@ -75,15 +93,8 @@ pub fn to_html(text: &str) -> String {
             continue;
         }
 
-        // Thematic break
-        if HR_RE.is_match(line) {
-            end_previous(&mut root, &mut scope);
-            root.children_mut().unwrap().push(ThematicBreak);
-            continue;
-        }
-
-        // Heading
-        if let Some(cap) = HEADING_RE.captures(line) {
+        // ATX heading
+        if let Some(cap) = ATX_HEADING_RE.captures(line) {
             end_previous(&mut root, &mut scope);
             let opening = cap.get(1).expect("opening sequence should be captured");
             let content = match (cap.get(2), cap.get(3)) {
@@ -92,9 +103,28 @@ pub fn to_html(text: &str) -> String {
                 (None, None) => String::new(),
                 _ => unreachable!("cannot match on both"),
             };
-            root.children_mut()
-                .unwrap()
-                .push(Heading(Heading::new(opening.len() as u8, content)));
+            root.children_mut().unwrap().push(Heading(Heading::new(
+                opening.len() as u8,
+                vec![Text(content.trim().into())],
+            )));
+            continue;
+        }
+
+        // Setext heading
+        if let (Some(cap), Some(para)) = (SETEXT_HEADING_RE.captures(line), scope.last()) {
+            let level = if cap.get(1).is_some() { 1 } else { 2 };
+            root.children_mut().unwrap().push(Heading(Heading::new(
+                level,
+                para.children().unwrap().clone(),
+            )));
+            scope.pop();
+            continue;
+        }
+
+        // Thematic break
+        if HR_RE.is_match(line) {
+            end_previous(&mut root, &mut scope);
+            root.children_mut().unwrap().push(ThematicBreak);
             continue;
         }
 
