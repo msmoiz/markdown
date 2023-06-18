@@ -95,16 +95,16 @@ mdtest!(
 );
 
 // 225
-mdtest_ignore!(
+mdtest!(
     start_four_leading_spaces,
-    "code block not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         aaa
     bbb
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    <p>aaa
-    bbb</p>
+    <pre><code>aaa
+    </code></pre>
+    <p>bbb</p>
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     "
 );

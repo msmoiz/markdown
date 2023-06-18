@@ -7,6 +7,7 @@ pub enum Node {
     ThematicBreak,
     Heading(Heading),
     Paragraph(Paragraph),
+    Code(String),
     Text(String),
 }
 
@@ -46,6 +47,7 @@ impl Display for Node {
                 x.children.iter().for_each(|c| write!(f, "{c}").unwrap());
                 write!(f, "</p>\n").unwrap();
             }
+            Node::Code(x) => write!(f, "<pre><code>{}</code></pre>\n", encode(x)).unwrap(),
             Node::Text(x) => {
                 write!(f, "{}", escape(x.trim_end())).unwrap();
             }
@@ -53,11 +55,22 @@ impl Display for Node {
         Ok(())
     }
 }
+
 const ESCAPES: [(&str, &str); 3] = [(r"\#", "#"), (r"\>", "&gt;"), (r"\-", "-")];
 
 fn escape(input: &str) -> String {
     let mut output = input.to_string();
     for (from, to) in ESCAPES {
+        output = output.replace(from, to);
+    }
+    output
+}
+
+const ENCODINGS: [(&str, &str); 2] = [("<", "&lt;"), (">", "&gt;")];
+
+fn encode(input: &str) -> String {
+    let mut output = input.to_string();
+    for (from, to) in ENCODINGS {
         output = output.replace(from, to);
     }
     output

@@ -103,12 +103,11 @@ mdtest!(
 );
 
 // 69
-mdtest_ignore!(
+mdtest!(
     four_leading_spaces,
-    "code block not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # foo    
+        # foo
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     <pre><code># foo
     </code></pre>

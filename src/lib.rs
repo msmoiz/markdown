@@ -70,6 +70,23 @@ lazy_static! {
         "
     )
     .expect("setext heading should be valid");
+    static ref INDENT_CODE_RE: Regex = Regex::new(
+        r"(?x)
+        # start of text
+        ^
+        # leading spaces
+        \ {4}
+        # content
+        (
+            \ *
+            [^\ ]{1}
+            .*
+        )
+        # end of text
+        $
+        "
+    )
+    .expect("indented code regex should be valid");
 }
 
 /// Parses an input Markdown text into HTML.
@@ -85,11 +102,19 @@ pub fn to_html(text: &str) -> String {
     let mut root = Root(Root::new());
 
     let mut scope = vec![];
+    let mut chunk_separators = vec![];
 
     for line in text.lines() {
         // Blank line
         if line.trim().is_empty() {
-            end_previous(&mut root, &mut scope);
+            match scope.last_mut() {
+                Some(Paragraph(_)) => end_previous(&mut root, &mut scope),
+                Some(Code(_)) => {
+                    let content = line.chars().skip(4).collect::<String>();
+                    chunk_separators.push(format!("{content}\n"));
+                }
+                _ => {}
+            }
             continue;
         }
 
@@ -111,12 +136,12 @@ pub fn to_html(text: &str) -> String {
         }
 
         // Setext heading
-        if let (Some(cap), Some(para)) = (SETEXT_HEADING_RE.captures(line), scope.last()) {
+        if let (Some(cap), Some(Paragraph(para))) = (SETEXT_HEADING_RE.captures(line), scope.last())
+        {
             let level = if cap.get(1).is_some() { 1 } else { 2 };
-            root.children_mut().unwrap().push(Heading(Heading::new(
-                level,
-                para.children().unwrap().clone(),
-            )));
+            root.children_mut()
+                .unwrap()
+                .push(Heading(Heading::new(level, para.children.clone())));
             scope.pop();
             continue;
         }
@@ -134,6 +159,26 @@ pub fn to_html(text: &str) -> String {
             continue;
         }
 
+        // Indented code
+        match (INDENT_CODE_RE.captures(line), scope.last_mut()) {
+            (Some(cap), Some(Code(code))) => {
+                while let Some(sep) = chunk_separators.pop() {
+                    code.push_str(&sep);
+                }
+                let content = cap.get(1).unwrap().as_str();
+                code.push_str(&format!("{content}\n"));
+                continue;
+            }
+            (Some(cap), None) => {
+                chunk_separators.clear();
+                let content = cap.get(1).unwrap().as_str();
+                scope.push(Code(format!("{content}\n")));
+                continue;
+            }
+            _ => {}
+        }
+
+        end_previous(&mut root, &mut scope);
         let mut para = Paragraph(Paragraph::new());
         para.children_mut()
             .unwrap()

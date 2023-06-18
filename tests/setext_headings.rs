@@ -90,15 +90,14 @@ mdtest!(
 );
 
 // 85
-mdtest_ignore!(
+mdtest!(
     four_leading_spaces,
-    "code block not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         Foo
         ---
 
-    Foo
+        Foo
     ---
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     <pre><code>Foo
@@ -338,9 +337,8 @@ mdtest_ignore!(
 );
 
 // 100
-mdtest_ignore!(
+mdtest!(
     paragraph_content_only_3,
-    "code block not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         foo

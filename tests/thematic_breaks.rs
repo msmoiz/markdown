@@ -73,9 +73,8 @@ mdtest!(
 );
 
 // 48
-mdtest_ignore!(
+mdtest!(
     four_leading_spaces,
-    "code block not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         ***
