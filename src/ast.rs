@@ -7,7 +7,7 @@ pub enum Node {
     ThematicBreak,
     Heading(Heading),
     Paragraph(Paragraph),
-    Code(String),
+    Code(Code),
     Text(String),
 }
 
@@ -47,7 +47,16 @@ impl Display for Node {
                 x.children.iter().for_each(|c| write!(f, "{c}").unwrap());
                 write!(f, "</p>\n").unwrap();
             }
-            Node::Code(x) => write!(f, "<pre><code>{}</code></pre>\n", encode(x)).unwrap(),
+            Node::Code(x) => {
+                let info = match &x.info {
+                    Some(info) => {
+                        let i = info.trim().split(" ").next().unwrap();
+                        format!(r#" class="language-{i}""#)
+                    }
+                    None => "".to_string(),
+                };
+                write!(f, "<pre><code{}>{}</code></pre>\n", info, encode(&x.text)).unwrap();
+            }
             Node::Text(x) => {
                 write!(f, "{}", escape(x.trim_end())).unwrap();
             }
@@ -110,5 +119,20 @@ pub struct Paragraph {
 impl Paragraph {
     pub fn new() -> Self {
         Self { children: vec![] }
+    }
+}
+
+/// Code.
+#[derive(Clone, Default)]
+pub struct Code {
+    pub text: String,
+    pub info: Option<String>,
+}
+
+impl Code {
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
     }
 }
