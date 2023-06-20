@@ -205,9 +205,8 @@ mdtest_ignore!(
 );
 
 // 92
-mdtest_ignore!(
+mdtest!(
     blockquote_continuation,
-    "block quote not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     > Foo
@@ -222,9 +221,8 @@ mdtest_ignore!(
 );
 
 // 93
-mdtest_ignore!(
+mdtest!(
     blockquote_continuation_2,
-    "block quote not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     > foo
@@ -352,9 +350,8 @@ mdtest!(
 );
 
 // 101
-mdtest_ignore!(
+mdtest!(
     paragraph_content_only_4,
-    "block quote not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     > foo

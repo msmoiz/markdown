@@ -226,9 +226,8 @@ mdtest!(
 );
 
 // 59
-mdtest_ignore!(
+mdtest!(
     setext_header_precedence,
-    "header not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     Foo

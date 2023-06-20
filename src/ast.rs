@@ -4,6 +4,9 @@ use std::fmt::Display;
 #[derive(Clone)]
 pub enum Node {
     Root(Root),
+
+    BlockQuote(BlockQuote),
+
     ThematicBreak,
     Heading(Heading),
     Paragraph(Paragraph),
@@ -12,17 +15,10 @@ pub enum Node {
 }
 
 impl Node {
-    pub fn children(&self) -> Option<&Vec<Node>> {
-        match self {
-            Node::Root(x) => Some(&x.children),
-            Node::Paragraph(x) => Some(&x.children),
-            _ => None,
-        }
-    }
-
     pub fn children_mut(&mut self) -> Option<&mut Vec<Node>> {
         match self {
             Node::Root(x) => Some(&mut x.children),
+            Node::BlockQuote(x) => Some(&mut x.children),
             Node::Paragraph(x) => Some(&mut x.children),
             _ => None,
         }
@@ -33,6 +29,11 @@ impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Node::Root(x) => x.children.iter().for_each(|c| write!(f, "{c}").unwrap()),
+            Node::BlockQuote(x) => {
+                write!(f, "<blockquote>\n").unwrap();
+                x.children.iter().for_each(|c| write!(f, "{c}").unwrap());
+                write!(f, "</blockquote>\n").unwrap();
+            }
             Node::ThematicBreak => {
                 write!(f, "<hr />\n").unwrap();
             }
@@ -92,6 +93,18 @@ pub struct Root {
 }
 
 impl Root {
+    pub fn new() -> Self {
+        Self { children: vec![] }
+    }
+}
+
+/// Block quote.
+#[derive(Clone)]
+pub struct BlockQuote {
+    children: Vec<Node>,
+}
+
+impl BlockQuote {
     pub fn new() -> Self {
         Self { children: vec![] }
     }
