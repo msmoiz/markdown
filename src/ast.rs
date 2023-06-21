@@ -1,11 +1,25 @@
 use std::fmt::Display;
 
+#[derive(Clone)]
+pub enum ListType {
+    Unordered(char),
+    Ordered(char, usize),
+}
+
+#[derive(Clone)]
+pub enum ListProximity {
+    Tight,
+    Loose,
+}
+
 /// Node.
 #[derive(Clone)]
 pub enum Node {
     Root(Root),
 
     BlockQuote(BlockQuote),
+    List(List),
+    ListItem(ListItem),
 
     ThematicBreak,
     Heading(Heading),
@@ -19,10 +33,16 @@ impl Node {
         match self {
             Node::Root(x) => Some(&mut x.children),
             Node::BlockQuote(x) => Some(&mut x.children),
+            Node::List(x) => Some(&mut x.children),
+            Node::ListItem(x) => Some(&mut x.children),
             Node::Paragraph(x) => Some(&mut x.children),
             _ => None,
         }
     }
+}
+
+lazy_static::lazy_static! {
+    static ref TIGHT: bool = false;
 }
 
 impl Display for Node {
@@ -36,6 +56,39 @@ impl Display for Node {
             }
             Node::ThematicBreak => {
                 write!(f, "<hr />\n").unwrap();
+            }
+            Node::List(x) => {
+                let tag = match x.list_type {
+                    ListType::Unordered(_) => "ul",
+                    ListType::Ordered(_, _) => "ol",
+                };
+                let start = match x.list_type {
+                    ListType::Ordered(_, 1) => "".to_string(),
+                    ListType::Ordered(_, start) => format!(r#" start="{start}""#),
+                    _ => "".into(),
+                };
+                write!(f, "<{tag}{start}>\n").unwrap();
+                x.children.iter().for_each(|c| write!(f, "{c}").unwrap());
+                write!(f, "</{tag}>\n").unwrap();
+            }
+            Node::ListItem(x) => {
+                write!(f, "<li>").unwrap();
+                let mut skip = false;
+                x.children.iter().for_each(|c| {
+                    let newline = if matches!(c, Node::Text(_)) || skip {
+                        "".to_string()
+                    } else {
+                        "\n".to_string()
+                    };
+                    let buf = format!("{newline}{c}");
+                    if buf.ends_with("\n") {
+                        skip = true;
+                    } else {
+                        skip = false;
+                    }
+                    write!(f, "{buf}").unwrap();
+                });
+                write!(f, "</li>\n").unwrap();
             }
             Node::Heading(x) => {
                 let level = x.level;
@@ -107,6 +160,40 @@ pub struct BlockQuote {
 impl BlockQuote {
     pub fn new() -> Self {
         Self { children: vec![] }
+    }
+}
+
+/// List.
+#[derive(Clone)]
+pub struct List {
+    pub list_type: ListType,
+    pub proximity: ListProximity,
+    pub children: Vec<Node>,
+}
+
+impl List {
+    pub fn new(list_type: ListType) -> Self {
+        Self {
+            list_type,
+            proximity: ListProximity::Tight,
+            children: vec![],
+        }
+    }
+}
+
+/// List item.
+#[derive(Clone)]
+pub struct ListItem {
+    pub indent: usize,
+    pub children: Vec<Node>,
+}
+
+impl ListItem {
+    pub fn new(indent: usize) -> Self {
+        Self {
+            indent,
+            children: vec![],
+        }
     }
 }
 

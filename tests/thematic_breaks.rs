@@ -189,9 +189,8 @@ mdtest!(
 );
 
 // 57
-mdtest_ignore!(
+mdtest!(
     no_blank_lines,
-    "list not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     - foo
@@ -241,9 +240,8 @@ mdtest!(
 );
 
 // 60
-mdtest_ignore!(
+mdtest!(
     list_precedence,
-    "list not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     * Foo
@@ -262,9 +260,8 @@ mdtest_ignore!(
 );
 
 // 61
-mdtest_ignore!(
+mdtest!(
     in_list,
-    "list not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     - Foo

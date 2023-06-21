@@ -16,9 +16,8 @@ mdtest!(
 );
 
 // 108
-mdtest_ignore!(
+mdtest!(
     list_precedence,
-    "list not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
       - foo
@@ -36,14 +35,13 @@ mdtest_ignore!(
 );
 
 // 109
-mdtest_ignore!(
+mdtest!(
     list_precedence_2,
-    "list not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     1.  foo
 
-    - bar
+        - bar
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     <ol>
     <li>

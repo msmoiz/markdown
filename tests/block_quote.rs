@@ -124,9 +124,8 @@ mdtest!(
 );
 
 // 235
-mdtest_ignore!(
+mdtest!(
     lazy_list,
-    "list not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     > - foo

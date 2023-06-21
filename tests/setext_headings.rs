@@ -239,9 +239,8 @@ mdtest!(
 );
 
 // 94
-mdtest_ignore!(
+mdtest!(
     list_continuation,
-    "list not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     - Foo
@@ -318,9 +317,8 @@ mdtest!(
 );
 
 // 99
-mdtest_ignore!(
+mdtest!(
     paragraph_content_only_2,
-    "list not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     - foo

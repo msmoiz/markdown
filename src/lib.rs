@@ -2,8 +2,10 @@
 
 mod ast;
 
+use std::cmp::max;
+
 use ast::{
-    Heading,
+    Heading, ListProximity, ListType,
     Node::{self, *},
     Paragraph, Root,
 };
@@ -114,6 +116,22 @@ lazy_static! {
         "
     )
     .expect("blockquote regex should be valid");
+    static ref LIST_ITEM_RE: Regex = Regex::new(
+        r"(?x)
+        # start of text
+        ^
+        # leading space
+        \ {0,3}
+        # delim
+        (
+            [\-+*]
+            |[0-9]{1,9}[.)]
+        )
+        # trailing space
+        (\ {1,}|$)
+        "
+    )
+    .expect("list item regex should be valid");
 }
 
 enum CodeBlockType {
@@ -214,10 +232,12 @@ pub fn to_html(text: &str) -> String {
     let mut fenced_block_delim: Option<String> = None;
     let mut fenced_block_lead: Option<u8> = None;
 
+    let mut last_line_blank = false;
+
     for line in text.lines() {
         // Close unmatched containers
         let len = tree.stack.len();
-        let (matched, line) = matched_containers(&mut tree, line);
+        let (matched, line) = matched_containers(&mut tree, line, last_line_blank);
         for _ in matched..tree.stack.len() {
             if let (Code(_), Some(Fenced)) = (tree.cur_mut(), &code_block_type) {
                 code_block_type = None;
@@ -228,30 +248,88 @@ pub fn to_html(text: &str) -> String {
         }
 
         let dropped = len - matched;
+        let mut could_be_lazy = true;
 
         // Check for new containers
         let mut line = line;
         loop {
+            // ignore in fenced code block
+            if let (Code(_), Some(Fenced)) = (tree.cur_mut(), &code_block_type) {
+                break;
+            }
+
             // on a loop, check if we match a block quote
             // if we do, advance line, loop again, otherwise break
             if let Some(cap) = BLOCKQUOTE_RE.captures(line) {
-                // ignore in fenced code block
-                if let (Code(_), Some(Fenced)) = (tree.cur_mut(), &code_block_type) {
-                    break;
-                } else {
-                    if let Paragraph(_) = tree.cur_mut() {
+                if let Paragraph(_) = tree.cur_mut() {
+                    tree.pop();
+                }
+                if let (Code(_), None) = (tree.cur_mut(), &code_block_type) {
+                    tree.pop();
+                }
+                tree.push(BlockQuote(ast::BlockQuote::new()));
+                let delim = cap.get(0).unwrap().len();
+                line = &line[delim..];
+                continue;
+            };
+
+            if let Some(cap) = LIST_ITEM_RE.captures(line) {
+                // if it could be a thematic break, that interpretation takes
+                // precedence
+                if HR_RE.is_match(line) {
+                    if let List(_) = tree.cur_mut() {
                         tree.pop();
                     }
-                    tree.push(BlockQuote(ast::BlockQuote::new()));
-                    let delim = cap.get(0).unwrap().len();
-                    line = &line[delim..]
+                    break;
                 }
-            } else {
-                break;
-            };
+
+                let delim = cap.get(1).expect("delim should exist").as_str();
+                let trail_len = cap.get(2).unwrap().len();
+
+                if let Paragraph(_) = tree.cur_mut() {
+                    // empty list cannot interrupt paragraph
+                    if trail_len == 0 {
+                        break;
+                    } else if !delim.ends_with(")") && !delim.ends_with(".") {
+                        tree.pop();
+                    } else if delim == "1)" || delim == "1." {
+                        tree.pop();
+                    } else {
+                        break;
+                    }
+                }
+
+                if !matches!(tree.cur_mut(), List(_)) {
+                    let list_type = match delim.chars().last().expect("last char should exist") {
+                        c @ ')' | c @ '.' => {
+                            ast::ListType::Ordered(c, delim[..delim.len() - 1].parse().unwrap())
+                        }
+                        c @ '-' | c @ '+' | c @ '*' => ast::ListType::Unordered(c),
+                        _ => unreachable!(),
+                    };
+                    tree.push(List(ast::List::new(list_type)));
+                }
+
+                let delim_ = cap.get(0).unwrap().as_str();
+                let mut indent = delim_.len();
+                if cap.get(2).unwrap().len() == 0 {
+                    indent = delim_.len();
+                } else if INDENT_CODE_RE.is_match(&line.trim_start()[delim.len() + 1..]) {
+                    indent = delim_.trim_end().len() + 1;
+                } else if line.trim_end().len() == delim_.trim_end().len() {
+                    // blank starting line
+                    indent = delim_.trim_end().len() + 1;
+                }
+                tree.push(ListItem(ast::ListItem::new(indent)));
+                line = &line[indent..];
+                could_be_lazy = false;
+                continue;
+            }
+
+            break;
         }
 
-        // Blank line
+        // Blank line (again)
         if line.trim().is_empty() {
             match tree.cur_mut() {
                 Paragraph(_) => tree.pop(),
@@ -264,8 +342,18 @@ pub fn to_html(text: &str) -> String {
                 },
                 _ => {}
             }
+            if !matches!(tree.cur_mut(), Node::BlockQuote(_) | Node::Code(_)) {
+                last_line_blank = true;
+            }
+            if let ListItem(list_item) = tree.cur_mut() {
+                if list_item.children.is_empty() {
+                    last_line_blank = false;
+                }
+            }
             continue;
         }
+
+        last_line_blank = false;
 
         // ATX heading
         if let Some(cap) = ATX_HEADING_RE.captures(line) {
@@ -374,7 +462,7 @@ pub fn to_html(text: &str) -> String {
         // nothing else matched, which means this is a paragraph
         // if we dropped on this iteration, add the scopes back
         // and treat it as a continuation line
-        if dropped > 0 && BLOCKQUOTE_RE.is_match(&format!("> {line}")) {
+        if dropped > 0 && could_be_lazy {
             for _ in 0..dropped {
                 tree.advance();
             }
@@ -415,6 +503,10 @@ pub fn to_html(text: &str) -> String {
             tree.pop();
         }
 
+        if let List(_) = tree.cur_mut() {
+            tree.pop();
+        }
+
         let mut para = Paragraph(Paragraph::new());
         para.children_mut()
             .unwrap()
@@ -422,13 +514,20 @@ pub fn to_html(text: &str) -> String {
         tree.push(para);
     }
 
+    tighten(&mut tree.root);
     format!("{}", tree.root)
 }
 
-fn matched_containers<'a>(state: &mut Tree, line: &'a str) -> (usize, &'a str) {
+fn matched_containers<'a>(
+    state: &mut Tree,
+    line: &'a str,
+    last_line_blank: bool,
+) -> (usize, &'a str) {
     let mut i = 0;
     let mut node = &mut state.root;
     let mut line = line;
+    let mut loosen = None;
+    let mut maybe_new_item = false;
     for s in &state.stack {
         node = &mut (node.children_mut().expect("should be parent")[*s]);
         match node {
@@ -439,9 +538,146 @@ fn matched_containers<'a>(state: &mut Tree, line: &'a str) -> (usize, &'a str) {
                 }
                 None => break,
             },
+            List(list) => match (&list.list_type, LIST_ITEM_RE.captures(line)) {
+                (ListType::Unordered(delim), Some(cap)) => {
+                    let new_delim = cap.get(1).unwrap().as_str();
+                    let new_delim = new_delim.chars().next().unwrap();
+                    if &new_delim != delim {
+                        // I am not a match and neither are my children
+                        break;
+                    } else {
+                        // I am a match but my children cannot be because
+                        // there is a new item on the list
+                        if i + 1 == state.stack.len() && last_line_blank {
+                            // sometimes the list has no child, in which case
+                            // we mark loose on our own
+                            list.proximity = ListProximity::Loose;
+                        } else {
+                            maybe_new_item = true;
+                        }
+                    }
+                }
+                (ListType::Ordered(delim, _), Some(cap)) => {
+                    let new_delim = cap.get(1).unwrap().as_str();
+                    let new_delim = new_delim.chars().last().unwrap();
+                    if &new_delim != delim {
+                        // I am not a match and neither are my children
+                        break;
+                    } else {
+                        // I am a match but my children cannot be because
+                        // there is a new item on the list
+                        if i + 1 == state.stack.len() && last_line_blank {
+                            // sometimes the list has no child, in which case
+                            // we mark loose on our own
+                            list.proximity = ListProximity::Loose;
+                        } else {
+                            maybe_new_item = true;
+                        }
+                    }
+                }
+                (_, None) => {
+                    // not sure, defer to list item
+                }
+            },
+            ListItem(list_item) => {
+                if line.trim().is_empty() {
+                    if list_item.children.is_empty() {
+                        // too many blank lines
+                        break;
+                    }
+                    i += 1;
+                    continue;
+                }
+
+                let indent = list_item.indent;
+                let mut chars = line.chars();
+                let mut count = 0;
+                loop {
+                    match chars.next() {
+                        Some(ch) => {
+                            if ch == ' ' {
+                                count += 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        None => break,
+                    }
+                }
+                if count < indent {
+                    if maybe_new_item {
+                        if last_line_blank {
+                            loosen = Some(i);
+                        }
+                        break;
+                    }
+                    i -= 1;
+                    break;
+                }
+
+                maybe_new_item = false;
+
+                line = &line[max(indent, 2)..];
+
+                if last_line_blank && !list_item.children.is_empty() {
+                    // grab the parent
+                    loosen = Some(i);
+                }
+            }
             _ => {}
         }
+
         i += 1;
     }
+
+    if let Some(parent) = loosen {
+        node = &mut state.root;
+        for j in 0..parent {
+            let s = state.stack[j];
+            node = &mut (node.children_mut().expect("should be parent")[s]);
+        }
+        if let List(list) = node {
+            list.proximity = ListProximity::Loose;
+        }
+    }
+
     (i, line)
+}
+
+fn tighten(node: &mut Node) {
+    if let List(ast::List {
+        proximity: ListProximity::Tight,
+        children,
+        ..
+    }) = node
+    {
+        for item in children {
+            match item {
+                ListItem(list_item) => {
+                    let mut ix = 0;
+                    loop {
+                        if ix == list_item.children.len() {
+                            break;
+                        }
+                        // if the child at this index is a paragraph, steal
+                        // its children and discard it
+                        if let Paragraph(_) = &list_item.children[ix] {
+                            let mut p = list_item.children.remove(ix);
+                            while let Some(c) = p.children_mut().unwrap().pop() {
+                                list_item.children.insert(ix, c);
+                            }
+                        }
+                        ix += 1;
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    if let Some(children) = node.children_mut() {
+        for child in children {
+            tighten(child);
+        }
+    }
 }
