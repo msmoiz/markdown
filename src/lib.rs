@@ -5,7 +5,7 @@ mod ast;
 use std::cmp::max;
 
 use ast::{
-    Heading, ListProximity, ListType,
+    Heading, Html, HtmlType, ListProximity, ListType,
     Node::{self, *},
     Paragraph, Root,
 };
@@ -132,6 +132,88 @@ lazy_static! {
         "
     )
     .expect("list item regex should be valid");
+    static ref HTML_1_5_RE: Regex = Regex::new(
+        r"(?x)
+        ^
+        # leading space
+        \ {0,3}
+        ((?:(?:<pre|<script|<style|<textarea)(?:[\ >]|$))|<!--|<\?|<![[:alpha:]]|<!\[CDATA\[)
+        "
+    )
+    .expect("html 1-5 regex should be valid");
+    static ref HTML_6_RE: Regex = Regex::new(
+        r"(?xi)
+        ^ # start
+        # leading space
+        \ {0,3}
+        </? # delim
+        (?: # tag name
+            address|article|aside|base|basefont|blockquote|body|caption
+            |center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset
+            |figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5
+            |h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem
+            |nav|noframes|ol|optgroup|option|p|param|section|source|summary
+            |table|tbody|td|tfoot|th|thead|title|tr|track|ul
+        )
+        (?: # close
+            [\ ]|>|/>|$
+        )
+        "
+    )
+    .expect("html 6 regex should be valid");
+    // line begins with a complete open tag (with any tag name other than pre,
+    // script, style, or textarea) or a complete closing tag, followed by zero or
+    // more spaces and tabs, followed by the end of the line.
+    static ref HTML_7_RE: Regex = Regex::new(
+        r###"(?xi)
+        # start
+        ^
+        # tag
+        (?:
+            # open
+            (?:
+                # start delim and tag name
+                <[[:alpha:]][[:alnum:]\-]*
+                # attributes
+                (?:
+                    # leading space
+                    \ *
+                    # tag name
+                    [_:[:alpha:]][_.:\-[:alnum:]]*
+                    # optional value spec
+                    (?:
+                        \ *
+                        =
+                        \ *
+                        # value
+                        (?:
+                            '[^']*'
+                            |"[^"]*"
+                            |[^\ "'=<>`]+
+                        )
+                    )?
+                )*
+                # trailing space
+                \ *
+                # optional close
+                /?
+                # end delim
+                >
+            )
+            # close
+            |(?:
+                # start delim and tag name
+                </[[:alpha:]][[:alnum:]\-]*
+                # trailing space
+                \ *
+                # end delim
+                >
+            )
+        )
+        # end
+        $
+        "###
+    ).expect("html 7 regex should be valid");
 }
 
 enum CodeBlockType {
@@ -329,7 +411,7 @@ pub fn to_html(text: &str) -> String {
             break;
         }
 
-        // Blank line (again)
+        // Blank line
         if line.trim().is_empty() {
             match tree.cur_mut() {
                 Paragraph(_) => tree.pop(),
@@ -339,6 +421,10 @@ pub fn to_html(text: &str) -> String {
                         let content = line.chars().skip(4).collect::<String>();
                         chunk_separators.push(format!("{content}\n"));
                     }
+                },
+                Html(html) => match html.html_type {
+                    HtmlType::Simple => tree.pop(),
+                    _ => html.text.push_str(&format!("{line}\n")),
                 },
                 _ => {}
             }
@@ -354,6 +440,78 @@ pub fn to_html(text: &str) -> String {
         }
 
         last_line_blank = false;
+
+        // HTML
+        if let Html(html) = tree.cur_mut() {
+            let content = format!("{line}\n");
+            html.text.push_str(&content);
+            if end_condition_met(html, line) {
+                tree.pop();
+            }
+            continue;
+        }
+
+        if let Some(cap) = HTML_1_5_RE.captures(line) {
+            let content = format!("{line}\n");
+            let delim = cap.get(1).unwrap().as_str();
+            let html_type = match delim {
+                "<!--" => HtmlType::Comment,
+                "<?" => HtmlType::Processing,
+                "<![CDATA[" => HtmlType::Cdata,
+                _ => {
+                    if delim.starts_with("<!") {
+                        HtmlType::Declaration
+                    } else {
+                        HtmlType::Literal
+                    }
+                }
+            };
+
+            if matches!(tree.cur_mut(), Paragraph(_)) {
+                tree.pop();
+            }
+
+            if matches!((tree.cur_mut(), &code_block_type), (Code(_), None)) {
+                tree.pop();
+            }
+
+            tree.push(Html(ast::Html::new(content, html_type)));
+            if let Html(html) = tree.cur_mut() {
+                if end_condition_met(html, line) {
+                    tree.pop();
+                }
+            }
+            continue;
+        }
+
+        if HTML_6_RE.is_match(line) {
+            let content = format!("{line}\n");
+
+            if matches!(tree.cur_mut(), Paragraph(_)) {
+                tree.pop();
+            }
+
+            if matches!((tree.cur_mut(), &code_block_type), (Code(_), None)) {
+                tree.pop();
+            }
+
+            tree.push(Html(ast::Html::new(content, HtmlType::Simple)));
+            if let Html(html) = tree.cur_mut() {
+                if end_condition_met(html, line) {
+                    tree.pop();
+                }
+            }
+            continue;
+        }
+
+        if HTML_7_RE.is_match(line) {
+            // paragraph takes precedence over html 7 block
+            if !matches!(tree.cur_mut(), Paragraph(_)) {
+                let content = format!("{line}\n");
+                tree.push(Html(ast::Html::new(content, HtmlType::Custom)));
+                continue;
+            }
+        }
 
         // ATX heading
         if let Some(cap) = ATX_HEADING_RE.captures(line) {
@@ -679,5 +837,21 @@ fn tighten(node: &mut Node) {
         for child in children {
             tighten(child);
         }
+    }
+}
+
+fn end_condition_met(html: &Html, line: &str) -> bool {
+    match html.html_type {
+        HtmlType::Literal => {
+            line.contains("</pre>")
+                || line.contains("</script>")
+                || line.contains("</style>")
+                || line.contains("</textarea>")
+        }
+        HtmlType::Comment => line.contains("-->"),
+        HtmlType::Processing => line.contains("?>"),
+        HtmlType::Declaration => line.contains(">"),
+        HtmlType::Cdata => line.contains("]]>"),
+        HtmlType::Simple | HtmlType::Custom => line.is_empty(),
     }
 }

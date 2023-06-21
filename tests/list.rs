@@ -145,9 +145,8 @@ mdtest!(
 );
 
 // 308
-mdtest_ignore!(
+mdtest!(
     break_with_html,
-    "html not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     - foo
@@ -172,9 +171,8 @@ mdtest_ignore!(
 );
 
 // 309
-mdtest_ignore!(
+mdtest!(
     break_with_html_2,
-    "html not supported",
     "
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     -   foo

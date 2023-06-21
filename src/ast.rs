@@ -12,6 +12,17 @@ pub enum ListProximity {
     Loose,
 }
 
+#[derive(Clone)]
+pub enum HtmlType {
+    Literal,
+    Comment,
+    Processing,
+    Declaration,
+    Cdata,
+    Simple,
+    Custom,
+}
+
 /// Node.
 #[derive(Clone)]
 pub enum Node {
@@ -25,6 +36,7 @@ pub enum Node {
     Heading(Heading),
     Paragraph(Paragraph),
     Code(Code),
+    Html(Html),
     Text(String),
 }
 
@@ -111,6 +123,7 @@ impl Display for Node {
                 };
                 write!(f, "<pre><code{}>{}</code></pre>\n", info, encode(&x.text)).unwrap();
             }
+            Node::Html(x) => write!(f, "{}", x.text).unwrap(),
             Node::Text(x) => {
                 write!(f, "{}", escape(x.trim_end())).unwrap();
             }
@@ -234,5 +247,18 @@ impl Code {
         Self {
             ..Default::default()
         }
+    }
+}
+
+/// HTML.
+#[derive(Clone)]
+pub struct Html {
+    pub text: String,
+    pub html_type: HtmlType,
+}
+
+impl Html {
+    pub fn new(text: String, html_type: HtmlType) -> Self {
+        Self { text, html_type }
     }
 }
