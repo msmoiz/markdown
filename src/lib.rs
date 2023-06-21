@@ -41,7 +41,7 @@ lazy_static! {
         # body
         (?:
             # separating space
-            \ +
+            [\ \t]+
             # content
             (?:
                 ([^\#]*)\s+\#+\s*$  # closing sequence (with text)
@@ -72,23 +72,6 @@ lazy_static! {
         "
     )
     .expect("setext heading should be valid");
-    static ref INDENT_CODE_RE: Regex = Regex::new(
-        r"(?x)
-        # start of text
-        ^
-        # leading spaces
-        \ {4}
-        # content
-        (
-            \ *
-            [^\ ]{1}
-            .*
-        )
-        # end of text
-        $
-        "
-    )
-    .expect("indented code regex should be valid");
     static ref FENCED_CODE_RE: Regex = Regex::new(
         r"(?x)
         # start of text
@@ -112,7 +95,7 @@ lazy_static! {
         # delim
         >
         # trailing spaces
-        \ {0,1}
+        [\ \t]?
         "
     )
     .expect("blockquote regex should be valid");
@@ -128,7 +111,7 @@ lazy_static! {
             |[0-9]{1,9}[.)]
         )
         # trailing space
-        (\ {1,}|$)
+        ([\ \t]+|$)
         "
     )
     .expect("list item regex should be valid");
@@ -319,7 +302,8 @@ pub fn to_html(text: &str) -> String {
     for line in text.lines() {
         // Close unmatched containers
         let len = tree.stack.len();
-        let (matched, line) = matched_containers(&mut tree, line, last_line_blank);
+        let (matched, line, mut _remaining_space) =
+            matched_containers(&mut tree, line, last_line_blank);
         for _ in matched..tree.stack.len() {
             if let (Code(_), Some(Fenced)) = (tree.cur_mut(), &code_block_type) {
                 code_block_type = None;
@@ -350,8 +334,9 @@ pub fn to_html(text: &str) -> String {
                     tree.pop();
                 }
                 tree.push(BlockQuote(ast::BlockQuote::new()));
-                let delim = cap.get(0).unwrap().len();
-                line = &line[delim..];
+                let delim = cap.get(0).unwrap().as_str();
+                _remaining_space = if delim.ends_with("\t") { 2 } else { 0 };
+                line = &line[delim.len()..];
                 continue;
             };
 
@@ -396,13 +381,18 @@ pub fn to_html(text: &str) -> String {
                 let mut indent = delim_.len();
                 if cap.get(2).unwrap().len() == 0 {
                     indent = delim_.len();
-                } else if INDENT_CODE_RE.is_match(&line.trim_start()[delim.len() + 1..]) {
+                } else if scan_indented_code(&line.trim_start()[delim.len() + 1..]) {
                     indent = delim_.trim_end().len() + 1;
                 } else if line.trim_end().len() == delim_.trim_end().len() {
                     // blank starting line
                     indent = delim_.trim_end().len() + 1;
                 }
-                tree.push(ListItem(ast::ListItem::new(indent)));
+                if cap.get(2).unwrap().as_str().ends_with("\t") {
+                    _remaining_space = 2;
+                } else {
+                    _remaining_space = 0;
+                }
+                tree.push(ListItem(ast::ListItem::new(max(indent, 2))));
                 line = &line[indent..];
                 could_be_lazy = false;
                 continue;
@@ -637,20 +627,23 @@ pub fn to_html(text: &str) -> String {
         }
 
         // Indented code
-        match (INDENT_CODE_RE.captures(line), tree.cur_mut()) {
-            (Some(cap), Code(code)) => {
+        match (scan_indented_code(line), tree.cur_mut()) {
+            (true, Code(code)) => {
                 while let Some(sep) = chunk_separators.pop() {
                     code.text.push_str(&sep);
                 }
-                let content = cap.get(1).unwrap().as_str();
-                code.text.push_str(&format!("{content}\n"));
+                let mut line = Line::new(line);
+                line.scan_space_upto(4);
+                code.text.push_str(&format!("{}\n", line.remainder()));
                 continue;
             }
-            (Some(cap), _) => {
+            (true, _) => {
                 chunk_separators.clear();
-                let content = cap.get(1).unwrap().as_str();
+                let mut line = Line::new(line);
+                line.scan_space_upto(4);
+                let content = line.remainder();
                 let mut code = ast::Code::new();
-                code.text = format!("{content}\n");
+                code.text = format!("{}{content}\n", &"    "[.._remaining_space]);
                 tree.push(Code(code));
                 continue;
             }
@@ -680,19 +673,25 @@ fn matched_containers<'a>(
     state: &mut Tree,
     line: &'a str,
     last_line_blank: bool,
-) -> (usize, &'a str) {
+) -> (usize, &'a str, usize) {
     let mut i = 0;
     let mut node = &mut state.root;
     let mut line = line;
     let mut loosen = None;
     let mut maybe_new_item = false;
+    let mut remaining_spaces = 0;
     for s in &state.stack {
         node = &mut (node.children_mut().expect("should be parent")[*s]);
         match node {
             BlockQuote(_) => match BLOCKQUOTE_RE.captures(line) {
                 Some(cap) => {
-                    let len = cap.get(0).unwrap().len();
-                    line = &line[len..];
+                    let cap = cap.get(0).unwrap().as_str();
+                    line = &line[cap.len()..];
+                    if cap.ends_with("\t") {
+                        remaining_spaces = 2;
+                    } else {
+                        remaining_spaces = 0;
+                    }
                 }
                 None => break,
             },
@@ -750,11 +749,28 @@ fn matched_containers<'a>(
                 let indent = list_item.indent;
                 let mut chars = line.chars();
                 let mut count = 0;
+                let mut used = 0;
+
+                while remaining_spaces > 0 && count < indent {
+                    count += 1;
+                    remaining_spaces -= 1;
+                }
+
                 loop {
                     match chars.next() {
                         Some(ch) => {
                             if ch == ' ' {
                                 count += 1;
+                                used += 1;
+                                if count >= indent {
+                                    break;
+                                }
+                            } else if ch == '\t' {
+                                count = (count / 4) + 4;
+                                used += 1;
+                                if count >= indent {
+                                    break;
+                                }
                             } else {
                                 break;
                             }
@@ -762,6 +778,7 @@ fn matched_containers<'a>(
                         None => break,
                     }
                 }
+
                 if count < indent {
                     if maybe_new_item {
                         if last_line_blank {
@@ -773,9 +790,13 @@ fn matched_containers<'a>(
                     break;
                 }
 
+                let mut lin = Line::new(line);
+                lin.scan_space_upto(indent);
+                remaining_spaces = lin.remaining_spaces;
+
                 maybe_new_item = false;
 
-                line = &line[max(indent, 2)..];
+                line = &line[used..];
 
                 if last_line_blank && !list_item.children.is_empty() {
                     // grab the parent
@@ -799,7 +820,7 @@ fn matched_containers<'a>(
         }
     }
 
-    (i, line)
+    (i, line, remaining_spaces)
 }
 
 fn tighten(node: &mut Node) {
@@ -853,5 +874,69 @@ fn end_condition_met(html: &Html, line: &str) -> bool {
         HtmlType::Declaration => line.contains(">"),
         HtmlType::Cdata => line.contains("]]>"),
         HtmlType::Simple | HtmlType::Custom => line.is_empty(),
+    }
+}
+
+fn scan_indented_code(line: &str) -> bool {
+    let mut chars = line.chars();
+    let mut spaces = 0;
+    while let Some(ch) = chars.next() {
+        match ch {
+            ' ' => spaces += 1,
+            '\t' => spaces += 4 - (spaces % 4),
+            _ => break,
+        }
+    }
+    spaces >= 4
+}
+
+/// Abstraction over a line of text.
+struct Line<'a> {
+    /// Input text.
+    input: &'a str,
+    /// Current position in the input.
+    position: usize,
+    /// Remaining spaces in the last consumed tab.
+    remaining_spaces: usize,
+}
+
+impl<'a> Line<'a> {
+    /// Creates a new Line object.
+    fn new(input: &'a str) -> Self {
+        Line {
+            input,
+            position: 0,
+            remaining_spaces: 0,
+        }
+    }
+
+    /// Scan up to the specified number of spaces.
+    fn scan_space_upto(&mut self, n: usize) {
+        let mut chars = self.input.chars();
+        let mut spaces = 0;
+        while let Some(ch) = chars.next() {
+            if spaces >= n {
+                break;
+            }
+            match ch {
+                ' ' => {
+                    self.position += 1;
+                    spaces += 1;
+                }
+                '\t' => {
+                    self.position += 1;
+                    spaces += 4 - (spaces % 4);
+                    if spaces > n {
+                        self.remaining_spaces = spaces - n;
+                    }
+                }
+                _ => break,
+            }
+        }
+    }
+
+    /// Returns the remaining text.
+    fn remainder(&self) -> &'a str {
+        &self.input[self.position..]
     }
 }

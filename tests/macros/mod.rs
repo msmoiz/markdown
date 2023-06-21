@@ -32,7 +32,11 @@ macro_rules! mdtest {
             let markdown = &components[1][1..]; // skip leading newline
             let html = to_html(markdown);
             let expected = &components[2][1..]; // skip leading newline
-            assert_eq!(html, expected);
+            if html != expected {
+                panic!(
+                    "\nFailed to parse markdown.\n{separator}Markdown\n{markdown}{separator}Expected\n{expected}{separator}Actual\n{html}"
+                );
+            }
         }
     };
 }
